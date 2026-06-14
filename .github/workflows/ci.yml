@@ -35,22 +35,7 @@ jobs:
 
       - name: Lint CSS
         run: |
-          cat > .stylelintrc.json <<'EOF'
-          {
-            "extends": "stylelint-config-standard",
-            "rules": {
-              "no-descending-specificity": null,
-              "selector-class-pattern": null,
-              "declaration-block-single-line-max-declarations": null,
-              "rule-empty-line-before": null,
-              "color-function-notation": null,
-              "alpha-value-notation": null,
-              "length-zero-no-unit": null,
-              "shorthand-property-no-redundant-values": null,
-              "declaration-block-no-redundant-longhand-properties": null
-            }
-          }
-          EOF
+          echo '{"extends":"stylelint-config-standard","rules":{"no-descending-specificity":null,"selector-class-pattern":null,"declaration-block-single-line-max-declarations":null,"rule-empty-line-before":null,"color-function-notation":null,"alpha-value-notation":null,"length-zero-no-unit":null,"shorthand-property-no-redundant-values":null,"declaration-block-no-redundant-longhand-properties":null}}' > .stylelintrc.json
           npx stylelint "assets/css/**/*.css"
 
       - name: Verificar imports ES quebrados (smoke)
