@@ -15,3 +15,4 @@ Thumbs.db
 # Infra notes (account ID, ARNs, IDs — fora do repo público)
 INFRA.local.md
 *.local.md
+docs/sdlc-aws-github-actions.md
