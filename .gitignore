@@ -11,3 +11,7 @@ venv/
 # OS
 Thumbs.db
 .DS_Store
+
+# Infra notes (account ID, ARNs, IDs — fora do repo público)
+INFRA.local.md
+*.local.md
