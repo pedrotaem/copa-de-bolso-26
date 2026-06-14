@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    name: Lint & validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install validators
+        run: |
+          npm install --no-save \
+            htmlhint@1.1.4 \
+            stylelint@16.2.1 \
+            stylelint-config-standard@36.0.0
+
+      - name: Validate JS syntax (node --check em cada .js)
+        run: |
+          find assets/js -name '*.js' -print0 | xargs -0 -n1 node --check
+
+      - name: Lint HTML
+        run: npx htmlhint "index.html"
+
+      - name: Lint CSS
+        run: |
+          echo '{"extends":"stylelint-config-standard","rules":{"no-descending-specificity":null}}' > .stylelintrc.json
+          npx stylelint "assets/css/**/*.css"
+
+      - name: Verificar imports ES quebrados (smoke)
+        run: |
+          node -e "
+          const fs = require('fs');
+          const path = require('path');
+          const glob = (dir) => fs.readdirSync(dir, {withFileTypes:true}).flatMap(d => {
+            const p = path.join(dir, d.name);
+            return d.isDirectory() ? glob(p) : [p];
+          }).filter(f => f.endsWith('.js'));
+          const files = glob('assets/js');
+          let failed = false;
+          for (const f of files) {
+            const src = fs.readFileSync(f, 'utf8');
+            const re = /from\s+['\"]([^'\"]+)['\"]/g;
+            let m;
+            while ((m = re.exec(src))) {
+              const target = path.resolve(path.dirname(f), m[1]);
+              if (!fs.existsSync(target) && !fs.existsSync(target + '.js')) {
+                console.error('Import quebrado em ' + f + ': ' + m[1]);
+                failed = true;
+              }
+            }
+          }
+          process.exit(failed ? 1 : 0);
+          "
