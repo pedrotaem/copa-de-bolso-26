@@ -3,6 +3,11 @@ name: Deploy → Production
 on:
   push:
     tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag pra (re)deployar — ex: v1.1.3 (rollback)'
+        required: true
 
 permissions:
   id-token: write
@@ -20,13 +25,15 @@ jobs:
     steps:
       - name: Checkout (tag)
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: us-east-1
-          role-session-name: gh-actions-deploy-prod-${{ github.ref_name }}
+          role-session-name: gh-actions-deploy-prod-${{ github.event.inputs.tag || github.ref_name }}
 
       - name: Sync assets to S3
         run: |
@@ -54,5 +61,6 @@ jobs:
 
       - name: Anotar versão deployada
         run: |
-          echo "Tag deployada: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "Tag deployada: ${{ github.event.inputs.tag || github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "Disparo: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
