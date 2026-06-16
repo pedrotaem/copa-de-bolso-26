@@ -332,7 +332,12 @@ function renderLog() {
               : ev.tipo === "subst" ? "ev--sub"
               : ev.tipo === "tatica" ? "ev--tat"
               : ev.tipo === "penalti" ? "ev--pen"
+              : ev.tipo === "cobranca" ? "ev--pen"
               : ev.tipo === "falta" ? "ev--falta"
+              : ev.tipo === "cabeceio" ? "ev--cabeceio"
+              : ev.tipo === "cruzamento" ? "ev--cruz"
+              : ev.tipo === "lancamento" ? "ev--lanc"
+              : ev.tipo === "drible" ? "ev--drible"
               : ev.tipo === "cartao" ? (ev.cor === "vermelho" ? "ev--vermelho" : "ev--amarelo")
               : "";
     return `<div class="ev ${cls}"><span class="ev__min">${ev.minuto}'</span> ${ev.texto || ""}</div>`;
