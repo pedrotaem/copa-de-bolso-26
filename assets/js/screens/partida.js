@@ -12,6 +12,9 @@ let cartaoVistos = 0;       // quantos cartões já alertados
 let tickerVistos = 0;       // tamanho do log na última montagem do ticker
 let manualPause = false;    // pausa pedida pelo usuário (botão)
 let alertaTimer = null;     // timer da auto-pausa de 5s
+let introRaf = null;        // rAF da entrada das equipes
+let introAtiva = false;     // true enquanto atletas estão entrando em campo
+let audioEntrada = null;    // trilha tocada na entrada
 
 export function renderPartida(root) {
   if (!state.adversario) { go("escalacao"); return; }
@@ -122,6 +125,7 @@ export function renderPartida(root) {
     });
   });
   document.getElementById("btn-skip").addEventListener("click", () => {
+    if (introAtiva) return; // ignora durante a entrada das equipes
     // avança 10 ticks * 60 = 1 minuto de jogo
     for (let i = 0; i < 60; i++) tickSim(state.partida);
     updateHUD();
@@ -146,7 +150,133 @@ export function renderPartida(root) {
   renderListasSubs();
 
   const ctx = document.getElementById("cv").getContext("2d");
-  loop(ctx);
+  iniciarEntrada(ctx);
+}
+
+/* ===== ENTRADA DAS EQUIPES =====
+   Antes do apito: atletas entram pela lateral esquerda em duas filas
+   paralelas (uma por time, cada uma no seu campo) e caminham até a posição
+   da formação. Toca a trilha de entrada. Sim fica congelado até terminar. */
+const ENTRADA_STAGGER = 9;    // atraso (frames) entre um atleta e o próximo da fila
+const ENTRADA_WALK_IN = 80;   // frames p/ entrar e ocupar o lugar perfilado no meio
+const ENTRADA_HOLD = 48;      // frames perfilados no centro antes de assumir posições
+const ENTRADA_WALK_OUT = 70;  // frames p/ ir do centro até a posição da formação
+let introDispStart = 0;       // frame em que começa a dispersão p/ formação
+let introTotal = 0;           // frame final da entrada
+
+function iniciarEntrada(ctx) {
+  const P = state.partida;
+  introAtiva = true;
+  P.paused = true;                 // congela a simulação durante a entrada
+  setControlesEntrada(true);       // desabilita controles enquanto entram
+
+  // filas perfiladas no meio: MEU (defende o topo) logo acima da linha central, ADV abaixo
+  const ordenar = (a, b) => a.idx - b.idx;
+  posicionarFila(P.jogadores.filter(j => j.time === "MEU").sort(ordenar), CAMPO_H / 2 - 40);
+  posicionarFila(P.jogadores.filter(j => j.time === "ADV").sort(ordenar), CAMPO_H / 2 + 40);
+
+  // linha do tempo: todos entram em fila e perfilam → seguram no meio → dispersam
+  const assembleDone = ENTRADA_STAGGER * 10 + ENTRADA_WALK_IN;
+  introDispStart = assembleDone + ENTRADA_HOLD;
+  introTotal = introDispStart + ENTRADA_WALK_OUT + 12;
+
+  tocarTrilhaEntrada();
+
+  let f = 0;
+  const passo = () => {
+    for (const j of P.jogadores) animarEntrada(j, f);
+    desenharPartida(ctx, P);
+    desenharCaptionEntrada(ctx, f, introTotal);
+    f++;
+    if (f <= introTotal) {
+      introRaf = requestAnimationFrame(passo);
+      return;
+    }
+    // fim da entrada: encaixa todos no home e começa o jogo
+    for (const j of P.jogadores) { j.x = j.homeX; j.y = j.homeY; j.vx = 0; j.vy = 0; }
+    introRaf = null;
+    introAtiva = false;
+    P.paused = manualPause;
+    setControlesEntrada(false);
+    loop(ctx);
+  };
+  passo();
+}
+
+/* posiciona um time em fila única off-field na lateral esquerda (altura `laneY`)
+   e define o lugar perfilado no meio que cada atleta vai ocupar */
+function posicionarFila(lista, laneY) {
+  const n = lista.length;
+  const span = 44;                                 // espaçamento na fila central
+  const x0 = CAMPO_W / 2 - (n - 1) * span / 2;      // fila centralizada no campo
+  lista.forEach((j, i) => {
+    j.entradaStartX = -16 - i * 24; // i=0 lidera; resto enfileirado fora da tela
+    j.entradaStartY = laneY;
+    j.entradaCenterX = x0 + i * span; // lugar perfilado no meio
+    j.entradaCenterY = laneY;
+    j.entradaDelay = i * ENTRADA_STAGGER;
+    j.x = j.entradaStartX;
+    j.y = j.entradaStartY;
+  });
+}
+
+/* anima um atleta em 2 fases: (1) entra em fila pela lateral e perfila no meio,
+   (2) após todos perfilados, vai do centro até a posição da formação. */
+function animarEntrada(j, f) {
+  const easeInOut = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  // fase 1 — entra e ocupa o lugar na fila central
+  const lpIn = Math.max(0, Math.min(1, (f - j.entradaDelay) / ENTRADA_WALK_IN));
+  const eIn = easeInOut(lpIn);
+  let x = j.entradaStartX + (j.entradaCenterX - j.entradaStartX) * eIn;
+  let y = j.entradaStartY + (j.entradaCenterY - j.entradaStartY) * eIn;
+  let andando = lpIn > 0 && lpIn < 1;
+  // fase 2 — do centro perfilado até a formação
+  if (f >= introDispStart) {
+    const lpOut = Math.max(0, Math.min(1, (f - introDispStart) / ENTRADA_WALK_OUT));
+    const eOut = easeInOut(lpOut);
+    x = j.entradaCenterX + (j.homeX - j.entradaCenterX) * eOut;
+    y = j.entradaCenterY + (j.homeY - j.entradaCenterY) * eOut;
+    andando = lpOut > 0 && lpOut < 1;
+  }
+  if (andando) y += Math.sin((f - j.entradaDelay) * 0.4) * 1.6;
+  j.x = x;
+  j.y = y;
+}
+
+/* legenda "ENTRAM EM CAMPO" com fade in/out */
+function desenharCaptionEntrada(ctx, f, total) {
+  const a = f < 12 ? f / 12 : (f > total - 16 ? Math.max(0, (total - f) / 16) : 1);
+  if (a <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
+  ctx.fillRect(CAMPO_W / 2 - 150, 18, 300, 40);
+  ctx.fillStyle = "#EDE7D6";
+  ctx.font = "20px 'Anton', sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("ENTRAM EM CAMPO", CAMPO_W / 2, 38);
+  ctx.restore();
+}
+
+function setControlesEntrada(desabilitar) {
+  ["btn-pause", "btn-skip"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = desabilitar;
+  });
+  document.querySelectorAll(".speed").forEach(b => { b.disabled = desabilitar; });
+}
+
+function tocarTrilhaEntrada() {
+  try {
+    audioEntrada = new Audio("assets/Project-Sirius-8-bit.mp3");
+    audioEntrada.volume = 0.7;
+    const PULA = 1.5; // o mp3 tem ~1,5s de silêncio no começo
+    const adianta = () => { try { audioEntrada.currentTime = PULA; } catch (e) {} };
+    audioEntrada.addEventListener("loadedmetadata", adianta, { once: true });
+    adianta(); // caso os metadados já estejam em cache
+    audioEntrada.play().catch(() => {}); // navegador pode bloquear; segue sem som
+  } catch (e) { /* sem áudio, segue o jogo */ }
 }
 
 function segLive(key, vals) {
@@ -326,6 +456,10 @@ function renderListasSubs() {
 export function cleanupPartida() {
   if (raf) cancelAnimationFrame(raf);
   raf = null;
+  if (introRaf) cancelAnimationFrame(introRaf);
+  introRaf = null;
+  introAtiva = false;
+  if (audioEntrada) { try { audioEntrada.pause(); } catch (e) {} audioEntrada = null; }
   if (alertaTimer) { clearTimeout(alertaTimer); alertaTimer = null; }
   const ov = document.querySelector(".cardalert");
   if (ov) ov.remove();
