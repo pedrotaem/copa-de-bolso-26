@@ -21,6 +21,8 @@ export const RAIO_BOLA = 4;
 export const TICKS_POR_MIN = 60;       // 60 ticks = 1 minuto de jogo
 export const DURACAO_TICKS = 90 * TICKS_POR_MIN; // 5400 ticks no total
 export const INTERVALO_TICK = 45 * TICKS_POR_MIN; // intervalo no minuto 45
+// goleiro segura no máx. 16s reais. 30 ticks = 1s real (5400 ticks = 90min ≈ 3min reais).
+export const GK_HOLD_MAX = 16 * 30; // 480 ticks
 
 /* Cria estado de uma partida nova */
 export function novaPartida({ meuTime, adversario, seed }) {
@@ -223,7 +225,17 @@ function alvoDoJogador(P, j, dono) {
   const distBola = Math.hypot(P.bola.x - j.x, P.bola.y - j.y);
 
   // ---- goleiro: 95% do jogo dentro da área (ver aplicarZona) ----
-  if (j.pos === "GOL") return alvoGoleiro(P, j, dir);
+  if (j.pos === "GOL") {
+    if (dono === j) {
+      j.estado = "com_bola";
+      j.gkHold = (j.gkHold || 0) + 1;
+      // distribui quando livre do cooldown OU força a saída no limite de 16s reais
+      if (j.cooldown === 0 || j.gkHold >= GK_HOLD_MAX) gkDistribuir(P, j);
+    } else {
+      j.gkHold = 0;
+    }
+    return alvoGoleiro(P, j, dir);
+  }
 
   // ---- com a bola ----
   if (dono === j) {
@@ -249,6 +261,19 @@ function alvoDoJogador(P, j, dono) {
   }
 
   // ---- adversário tem a bola, ou bola solta ----
+  // bola com o goleiro adversário: não pode ficar em cima marcando.
+  // mantém um raio mínimo (bolha) ao redor do goleiro — recua quem invadiu.
+  if (dono && dono.time !== j.time && dono.pos === "GOL") {
+    j.estado = "recuar";
+    const STANDOFF = 140;
+    const dx = j.x - P.bola.x, dy = j.y - P.bola.y;
+    const d = Math.hypot(dx, dy) || 1;
+    if (d < STANDOFF) {
+      // dentro da bolha: empurra pra fora, na direção do próprio campo
+      return { x: P.bola.x + dx / d * STANDOFF, y: P.bola.y + dy / d * STANDOFF, livre: false };
+    }
+    return { x: j.homeX, y: j.homeY, livre: false }; // fora da bolha: mantém a forma
+  }
   const presser = jogadorMaisProximo(P, P.bola.x, P.bola.y, j.time);
   if (presser === j || distBola < 70) {
     j.estado = "perseguir";
@@ -564,6 +589,21 @@ function decidirAcaoComBola(P, j) {
   // resto: drible em condução
   driblar(P, j);
   j.cooldown = 10;
+}
+
+/* distribuição do goleiro: lança a um colega avançado com espaço; senão passa
+   ao colega livre mais próximo; chutão pra frente como último recurso.
+   Sempre solta a bola (passar/lancar/chutar zeram bola.dono). */
+function gkDistribuir(P, j) {
+  j.gkHold = 0;
+  const alvo = colegaAvancado(P, j) || melhorColega(P, j);
+  if (alvo) {
+    const d = Math.hypot(alvo.x - j.x, alvo.y - j.y);
+    if (d > 220) lancar(P, j, alvo); else passar(P, j, alvo);
+  } else {
+    chutar(P, j); // sem opção de passe: chutão
+  }
+  j.cooldown = 24;
 }
 
 /* colega claramente à frente (profundidade) e com pouca marcação — alvo de lançamento */
