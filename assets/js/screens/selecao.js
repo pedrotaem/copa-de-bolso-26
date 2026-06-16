@@ -147,13 +147,13 @@ export function renderSelecao(root) {
     document.getElementById(id).addEventListener("change", (e) => {
       filtros[id.split("-")[1]] = e.target.value;
       pagina = 1;
-      renderLista();
+      renderLista({ keepScroll: false });
     });
   });
   document.getElementById("f-busca").addEventListener("input", (e) => {
     filtros.busca = e.target.value.toLowerCase();
     pagina = 1;
-    renderLista();
+    renderLista({ keepScroll: false });
   });
 
   renderLista();
@@ -190,9 +190,11 @@ function toggleAtleta(id) {
 }
 
 /* ---- coluna esquerda: lista ---- */
-function renderLista() {
+function renderLista(opts = {}) {
+  const keepScroll = opts.keepScroll !== false; // padrão: mantém o scroll
   const lista = document.getElementById("lista");
   const pager = document.getElementById("pager");
+  const prevScroll = lista.scrollTop;
   const sel = selecionados();
   const itens = ordenarBrPrimeiro(filtrar());
   if (!itens.length) {
@@ -212,7 +214,7 @@ function renderLista() {
   const pageItens = itens.slice(inicio, inicio + PAGE_SIZE);
 
   lista.innerHTML = pageItens.map(a => rowAtleta(a, sel.has(a.id), a.id === selectedId)).join("");
-  lista.scrollTop = 0;
+  lista.scrollTop = keepScroll ? prevScroll : 0;
   lista.querySelectorAll("[data-face]").forEach(slot => {
     const a = ATLETAS.find(x => x.id === slot.getAttribute("data-face"));
     if (a) slot.appendChild(faceToCanvas(a, 3));
@@ -263,8 +265,8 @@ function renderPager(pager, totalPaginas, totalItens) {
     <button class="btn btn--ghost pager__btn" id="pg-next" ${pagina >= totalPaginas ? "disabled" : ""} aria-label="Próxima página">→</button>`;
   const prev = pager.querySelector("#pg-prev");
   const next = pager.querySelector("#pg-next");
-  if (prev) prev.addEventListener("click", () => { pagina--; renderLista(); });
-  if (next) next.addEventListener("click", () => { pagina++; renderLista(); });
+  if (prev) prev.addEventListener("click", () => { pagina--; renderLista({ keepScroll: false }); });
+  if (next) next.addEventListener("click", () => { pagina++; renderLista({ keepScroll: false }); });
 }
 
 function rowAtleta(a, ativo, sel) {

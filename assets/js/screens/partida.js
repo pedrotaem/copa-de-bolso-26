@@ -59,7 +59,18 @@ export function renderPartida(root) {
 
       <div class="match__layout">
         <div class="match__canvas-wrap">
-          <canvas id="cv" width="${CAMPO_W}" height="${CAMPO_H}"></canvas>
+          <div class="match__pitch">
+            <div class="posse" aria-label="Posse de bola">
+              <span class="posse__pct posse__pct--meu" id="posse-pct-meu">50%</span>
+              <div class="posse__track">
+                <div class="posse__seg posse__seg--meu" id="posse-fill-meu" style="height:50%"></div>
+                <div class="posse__seg posse__seg--adv" id="posse-fill-adv" style="height:50%"></div>
+              </div>
+              <span class="posse__pct posse__pct--adv" id="posse-pct-adv">50%</span>
+              <span class="posse__cap">POSSE</span>
+            </div>
+            <canvas id="cv" width="${CAMPO_W}" height="${CAMPO_H}"></canvas>
+          </div>
           <div class="match__controls">
             <button class="btn btn--ghost" id="btn-pause">⏸ pausar</button>
             <button class="btn btn--ghost speed on" data-speed="1">1×</button>
@@ -317,6 +328,40 @@ function updateHUD() {
   document.getElementById("score-meu").textContent = P.placar.MEU;
   document.getElementById("score-adv").textContent = P.placar.ADV;
   document.getElementById("hud-min").textContent = `${minuto(P)}'`;
+  // barra de posse de bola (mesma fórmula da tela de resultado)
+  const totalPosse = P.stats.MEU.posseTicks + P.stats.ADV.posseTicks || 1;
+  const posseMeu = Math.round(P.stats.MEU.posseTicks / totalPosse * 100);
+  const posseAdv = 100 - posseMeu;
+  document.getElementById("posse-fill-meu").style.height = `${posseMeu}%`;
+  document.getElementById("posse-fill-adv").style.height = `${posseAdv}%`;
+  document.getElementById("posse-pct-meu").textContent = `${posseMeu}%`;
+  document.getElementById("posse-pct-adv").textContent = `${posseAdv}%`;
+}
+
+/* destaque por tipo de lance dentro de uma sequência */
+function pieceCls(ev) {
+  if (ev.tipo === "gol") return "evp--gol";
+  if (ev.tipo === "cartao") return ev.cor === "vermelho" ? "evp--vermelho" : "evp--amarelo";
+  if (ev.tipo === "penalti" || ev.tipo === "cobranca") return "evp--pen";
+  if (ev.tipo === "cabeceio") return "evp--cabeceio";
+  return "";
+}
+
+/* agrupa eventos consecutivos do mesmo time numa só "sequência" (mesma posse).
+   Posse muda de time => nova linha. Eventos sem time ficam isolados. */
+function agruparSequencias(eventos) {
+  const grupos = [];
+  for (const ev of eventos) {
+    const t = ev.time || null;
+    const ult = grupos[grupos.length - 1];
+    if (ult && t && ult.time === t) {
+      ult.eventos.push(ev);
+      ult.minFim = ev.minuto;
+    } else {
+      grupos.push({ time: t, minIni: ev.minuto, minFim: ev.minuto, eventos: [ev] });
+    }
+  }
+  return grupos;
 }
 
 function renderLog() {
@@ -324,24 +369,26 @@ function renderLog() {
   if (P.eventos.length === lastLogLen) return;
   lastLogLen = P.eventos.length;
   const log = document.getElementById("log");
-  // mostra últimos 8
-  const recentes = P.eventos.slice(-10).reverse();
-  log.innerHTML = recentes.map(ev => {
-    const cls = ev.tipo === "gol" ? "ev--gol"
-              : ev.tipo === "intervalo" ? "ev--int"
-              : ev.tipo === "subst" ? "ev--sub"
-              : ev.tipo === "tatica" ? "ev--tat"
-              : ev.tipo === "penalti" ? "ev--pen"
-              : ev.tipo === "cobranca" ? "ev--pen"
-              : ev.tipo === "falta" ? "ev--falta"
-              : ev.tipo === "cabeceio" ? "ev--cabeceio"
-              : ev.tipo === "cruzamento" ? "ev--cruz"
-              : ev.tipo === "lancamento" ? "ev--lanc"
-              : ev.tipo === "drible" ? "ev--drible"
-              : ev.tipo === "cartao" ? (ev.cor === "vermelho" ? "ev--vermelho" : "ev--amarelo")
-              : "";
-    return `<div class="ev ${cls}"><span class="ev__min">${ev.minuto}'</span> ${ev.texto || ""}</div>`;
+  if (!log) return;
+  // só "puxa" pro fim se o usuário já estava no fim (senão respeita o scroll de consulta)
+  const noFim = log.scrollHeight - log.scrollTop - log.clientHeight < 28;
+
+  const grupos = agruparSequencias(P.eventos);
+  log.innerHTML = grupos.map(g => {
+    const teamCls = g.time === "MEU" ? "ev--meu" : g.time === "ADV" ? "ev--adv" : "ev--neutro";
+    const minTxt = g.minIni === g.minFim ? `${g.minIni}'` : `${g.minIni}'–${g.minFim}'`;
+    const tag = g.time === "MEU" ? state.time.nome
+              : g.time === "ADV" ? state.adversario.nome : "";
+    const pieces = g.eventos
+      .map(ev => `<span class="evp ${pieceCls(ev)}">${ev.texto || ""}</span>`)
+      .join(`<span class="ev__sep">›</span>`);
+    return `<div class="ev ev--seq ${teamCls}">
+        <span class="ev__min">${minTxt}</span>${tag ? `<span class="ev__team">${tag}</span>` : ""}
+        <span class="ev__seq">${pieces}</span>
+      </div>`;
   }).join("");
+
+  if (noFim) log.scrollTop = log.scrollHeight; // mantém o lance mais novo à vista
 }
 
 /* ticker de lances importantes sob o placar: gols e cartões, separados por time
