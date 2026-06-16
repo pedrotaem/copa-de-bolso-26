@@ -5,6 +5,7 @@ import { renderSelecao } from "./screens/selecao.js";
 import { renderEscalacao } from "./screens/escalacao.js";
 import { renderPartida, cleanupPartida } from "./screens/partida.js";
 import { renderResultado } from "./screens/resultado.js";
+import { initHeader } from "./ui/header.js";
 
 const app = document.getElementById("app");
 
@@ -43,6 +44,7 @@ subscribe((_, ev) => {
 });
 
 /* boot */
+initHeader();
 router();
 
 /* expor pra debug em dev */

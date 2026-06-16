@@ -5,7 +5,8 @@ let nextId = 1;
 
 export const state = {
   rota: "home",                    // home | selecao | escalacao | partida | resultado
-  tecnico: "Pedro",
+  usuario: null,                   // null = visitante; { uid, nome, email, foto } quando logado
+  tecnico: "Visitante",            // nome exibido; vira o 1º nome do usuário ao logar
   // catálogo
   atletas: [],                     // carregado via data/athletes.js
   // construção de time
