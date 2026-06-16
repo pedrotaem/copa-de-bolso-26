@@ -358,7 +358,7 @@ function disputas(P) {
   const drbSkill = (dono.atr.drb + dono.atr.vel) / 2 / 99;
 
   const pLimpo = Math.max(0.05, 0.34 + defSkill * 0.40 - drbSkill * 0.30);
-  const pFalta = Math.max(0.05, 0.12 + agro * 0.20 + drbSkill * 0.12 - defSkill * 0.10);
+  const pFalta = Math.max(0.05, 0.08 + agro * 0.14 + drbSkill * 0.12 - defSkill * 0.10);
   const r = P.rng();
 
   if (r < pLimpo) {                 // desarme limpo
@@ -400,8 +400,8 @@ function cometerFalta(P, faltoso, vitima) {
   const ultimoHomem = vitima.pos === "ATA" && faltaNaAreaDefensiva(faltoso, 0.5);
   const s = P.rng() + agro * 0.12 + (ultimoHomem ? 0.10 : 0);
   let card = null;
-  if (s > 0.95 || (ultimoHomem && s > 0.82)) card = "vermelho";
-  else if (s > 0.68) card = "amarelo";
+  if (s > 1.06 || (ultimoHomem && s > 0.82)) card = "vermelho";
+  else if (s > 0.80) card = "amarelo";
   aplicarCartao(P, faltoso, card);
 
   // reinício: pênalti se na área, senão falta pro time da vítima
