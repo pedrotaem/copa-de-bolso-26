@@ -1,8 +1,8 @@
-/* athletes.js — 30 lendas ficcionalizadas inspiradas em arquétipos.
+/* athletes.js — 22 lendas ficcionalizadas inspiradas em arquétipos.
    Nomes ficcionais, atributos balanceados (0-99), eras reais como contexto histórico. */
 
 export const ATLETAS = [
-  // ===== GOLEIROS (4) =====
+  // ===== GOLEIROS (3) =====
   { id: "muralha_alemao", nome: "Der Wand", apelido: "O Muro Alemão", era: "1974",
     nac: "DE", pos: "GOL", estilo: "Muralha",
     atr: { vel: 60, res: 80, drb: 30, pas: 65, fin: 20, frc: 88, def: 92, vis: 84, ref: 95 },
@@ -11,24 +11,16 @@ export const ATLETAS = [
     nac: "IT", pos: "GOL", estilo: "Reflexo",
     atr: { vel: 72, res: 78, drb: 35, pas: 60, fin: 15, frc: 80, def: 86, vis: 82, ref: 97 },
     cor1: "#0F4DA8", cor2: "#FFD93D" },
-  { id: "guardiao_br", nome: "O Guardião", apelido: "Mãos de Ouro", era: "1994",
-    nac: "BR", pos: "GOL", estilo: "Líder",
-    atr: { vel: 68, res: 82, drb: 28, pas: 70, fin: 18, frc: 84, def: 90, vis: 88, ref: 93 },
-    cor1: "#FFD93D", cor2: "#0E5C2F" },
   { id: "san_lorenzo", nome: "San Lorenzo", apelido: "O Santo", era: "2014",
     nac: "AR", pos: "GOL", estilo: "Moderno",
     atr: { vel: 75, res: 80, drb: 50, pas: 82, fin: 22, frc: 78, def: 84, vis: 85, ref: 91 },
     cor1: "#7CB9E8", cor2: "#FFFFFF" },
 
-  // ===== ZAGUEIROS (6) =====
+  // ===== ZAGUEIROS (5) =====
   { id: "kaiser_de", nome: "Der Kaiser", apelido: "O Imperador", era: "1974",
     nac: "DE", pos: "ZAG", estilo: "Líbero",
     atr: { vel: 72, res: 88, drb: 70, pas: 88, fin: 55, frc: 84, def: 92, vis: 95, ref: 60 },
     cor1: "#1B1A17", cor2: "#F5B11E" },
-  { id: "capitao_br_70", nome: "Capitão", apelido: "O Senhor", era: "1970",
-    nac: "BR", pos: "ZAG", estilo: "Líder",
-    atr: { vel: 70, res: 85, drb: 62, pas: 85, fin: 50, frc: 86, def: 90, vis: 92, ref: 55 },
-    cor1: "#FFD93D", cor2: "#0E5C2F" },
   { id: "muralla_uy", nome: "La Muralla", apelido: "La Muralla", era: "1950",
     nac: "UY", pos: "ZAG", estilo: "Muralha",
     atr: { vel: 65, res: 92, drb: 45, pas: 72, fin: 40, frc: 95, def: 95, vis: 80, ref: 58 },
@@ -46,15 +38,7 @@ export const ATLETAS = [
     atr: { vel: 66, res: 86, drb: 50, pas: 70, fin: 42, frc: 90, def: 91, vis: 78, ref: 56 },
     cor1: "#7CB9E8", cor2: "#FFFFFF" },
 
-  // ===== LATERAIS (4) =====
-  { id: "cometa_br_02", nome: "Cometa", apelido: "Cometa", era: "2002",
-    nac: "BR", pos: "LAT", estilo: "Veloz",
-    atr: { vel: 95, res: 92, drb: 82, pas: 80, fin: 70, frc: 72, def: 75, vis: 78, ref: 50 },
-    cor1: "#FFD93D", cor2: "#0E5C2F" },
-  { id: "raio_br_98", nome: "Raio", apelido: "O Raio", era: "1998",
-    nac: "BR", pos: "LAT", estilo: "Veloz",
-    atr: { vel: 93, res: 90, drb: 88, pas: 82, fin: 75, frc: 70, def: 70, vis: 80, ref: 50 },
-    cor1: "#FFD93D", cor2: "#0E5C2F" },
+  // ===== LATERAIS (2) =====
   { id: "carro_alemao", nome: "Wagen", apelido: "Carro Alemão", era: "1990",
     nac: "DE", pos: "LAT", estilo: "Equilibrado",
     atr: { vel: 82, res: 90, drb: 70, pas: 84, fin: 55, frc: 78, def: 84, vis: 82, ref: 52 },
@@ -64,15 +48,11 @@ export const ATLETAS = [
     atr: { vel: 90, res: 88, drb: 78, pas: 82, fin: 65, frc: 74, def: 80, vis: 84, ref: 50 },
     cor1: "#0055A4", cor2: "#EF4135" },
 
-  // ===== MEIAS (10) =====
+  // ===== MEIAS (8) =====
   { id: "el_maestro_ar", nome: "El Maestro", apelido: "El Maestro", era: "1986",
     nac: "AR", pos: "MEI", estilo: "Maestro",
     atr: { vel: 80, res: 88, drb: 96, pas: 95, fin: 88, frc: 70, def: 50, vis: 98, ref: 50 },
     cor1: "#7CB9E8", cor2: "#FFFFFF" },
-  { id: "rei_br_70", nome: "O Rei", apelido: "O Rei", era: "1970",
-    nac: "BR", pos: "MEI", estilo: "Universal",
-    atr: { vel: 88, res: 92, drb: 94, pas: 92, fin: 95, frc: 78, def: 60, vis: 96, ref: 55 },
-    cor1: "#FFD93D", cor2: "#0E5C2F" },
   { id: "principe_fr", nome: "Le Prince", apelido: "O Príncipe", era: "1998",
     nac: "FR", pos: "MEI", estilo: "Maestro",
     atr: { vel: 78, res: 88, drb: 92, pas: 96, fin: 84, frc: 80, def: 60, vis: 97, ref: 50 },
@@ -85,10 +65,6 @@ export const ATLETAS = [
     nac: "ES", pos: "MEI", estilo: "Toque",
     atr: { vel: 76, res: 88, drb: 95, pas: 97, fin: 80, frc: 60, def: 55, vis: 98, ref: 48 },
     cor1: "#C60B1E", cor2: "#FFC400" },
-  { id: "cerebro_br_82", nome: "Cérebro", apelido: "Cérebro", era: "1982",
-    nac: "BR", pos: "MEI", estilo: "Maestro",
-    atr: { vel: 75, res: 86, drb: 88, pas: 94, fin: 82, frc: 72, def: 58, vis: 95, ref: 50 },
-    cor1: "#FFD93D", cor2: "#0E5C2F" },
   { id: "tornado_nl", nome: "Tornado", apelido: "Tornado", era: "1974",
     nac: "NL", pos: "MEI", estilo: "Universal",
     atr: { vel: 86, res: 92, drb: 90, pas: 90, fin: 84, frc: 78, def: 75, vis: 94, ref: 52 },
@@ -106,11 +82,7 @@ export const ATLETAS = [
     atr: { vel: 84, res: 92, drb: 84, pas: 88, fin: 78, frc: 72, def: 70, vis: 90, ref: 50 },
     cor1: "#0033A0", cor2: "#FFFFFF" },
 
-  // ===== ATACANTES (6) =====
-  { id: "fenomeno_br_02", nome: "O Fenômeno", apelido: "O Fenômeno", era: "2002",
-    nac: "BR", pos: "ATA", estilo: "Artilheiro",
-    atr: { vel: 95, res: 84, drb: 92, pas: 80, fin: 98, frc: 84, def: 35, vis: 88, ref: 50 },
-    cor1: "#FFD93D", cor2: "#0E5C2F" },
+  // ===== ATACANTES (4) =====
   { id: "bomber_de_74", nome: "Der Bomber", apelido: "Der Bomber", era: "1974",
     nac: "DE", pos: "ATA", estilo: "Artilheiro",
     atr: { vel: 80, res: 86, drb: 78, pas: 75, fin: 97, frc: 90, def: 30, vis: 82, ref: 50 },
@@ -119,10 +91,6 @@ export const ATLETAS = [
     nac: "DE", pos: "ATA", estilo: "Forte",
     atr: { vel: 78, res: 88, drb: 75, pas: 78, fin: 92, frc: 94, def: 35, vis: 80, ref: 50 },
     cor1: "#1B1A17", cor2: "#F5B11E" },
-  { id: "garrincha_br_62", nome: "O Anjo Torto", apelido: "O Anjo Torto", era: "1962",
-    nac: "BR", pos: "ATA", estilo: "Drible",
-    atr: { vel: 90, res: 84, drb: 98, pas: 80, fin: 86, frc: 72, def: 30, vis: 88, ref: 50 },
-    cor1: "#FFD93D", cor2: "#0E5C2F" },
   { id: "magicien_fr_98", nome: "Le Magicien", apelido: "Le Magicien", era: "1998",
     nac: "FR", pos: "ATA", estilo: "Mágico",
     atr: { vel: 84, res: 86, drb: 94, pas: 86, fin: 90, frc: 75, def: 35, vis: 90, ref: 50 },

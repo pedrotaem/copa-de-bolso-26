@@ -7,8 +7,11 @@ import { ATLETAS, FLAGS, POS_LABEL, POS_ORDEM } from "../data/athletes.js";
 import { faceToCanvas } from "../data/pixelart.js";
 
 const TOTAL = 16;
+const PAGE_SIZE = 20;   // atletas por página
+const VISIVEIS = 5;     // atletas visíveis ao mesmo tempo no scroll
 let filtros = { pos: "TODAS", era: "TODAS", nac: "TODAS", busca: "" };
 let selectedId = null;
+let pagina = 1;         // página atual da lista
 
 /* atributos */
 const ATTR_FULL = [
@@ -113,7 +116,10 @@ export function renderSelecao(root) {
       </div>
 
       <div class="draft3">
-        <div class="draft3__list" id="lista" aria-label="Catálogo de atletas"></div>
+        <div class="draft3__col">
+          <div class="draft3__list" id="lista" aria-label="Catálogo de atletas"></div>
+          <nav class="draft3__pager" id="pager" aria-label="Paginação do catálogo"></nav>
+        </div>
         <div class="draft3__detail" id="detalhe" aria-live="polite"></div>
         <aside class="sel__time" aria-label="Seu time">
           <header>
@@ -140,11 +146,13 @@ export function renderSelecao(root) {
   ["f-pos","f-era","f-nac"].forEach(id => {
     document.getElementById(id).addEventListener("change", (e) => {
       filtros[id.split("-")[1]] = e.target.value;
+      pagina = 1;
       renderLista();
     });
   });
   document.getElementById("f-busca").addEventListener("input", (e) => {
     filtros.busca = e.target.value.toLowerCase();
+    pagina = 1;
     renderLista();
   });
 
@@ -184,17 +192,27 @@ function toggleAtleta(id) {
 /* ---- coluna esquerda: lista ---- */
 function renderLista() {
   const lista = document.getElementById("lista");
+  const pager = document.getElementById("pager");
   const sel = selecionados();
-  const itens = filtrar();
+  const itens = ordenarBrPrimeiro(filtrar());
   if (!itens.length) {
     lista.innerHTML = `<div class="empty">Nenhum atleta com esses filtros.</div>`;
+    lista.style.maxHeight = "";
+    if (pager) pager.innerHTML = "";
     selectedId = null;
     renderDetalhe();
     return;
   }
   if (!selectedId || !itens.some(a => a.id === selectedId)) selectedId = itens[0].id;
 
-  lista.innerHTML = itens.map(a => rowAtleta(a, sel.has(a.id), a.id === selectedId)).join("");
+  // paginação: 20 por página
+  const totalPaginas = Math.ceil(itens.length / PAGE_SIZE);
+  pagina = Math.min(Math.max(1, pagina), totalPaginas);
+  const inicio = (pagina - 1) * PAGE_SIZE;
+  const pageItens = itens.slice(inicio, inicio + PAGE_SIZE);
+
+  lista.innerHTML = pageItens.map(a => rowAtleta(a, sel.has(a.id), a.id === selectedId)).join("");
+  lista.scrollTop = 0;
   lista.querySelectorAll("[data-face]").forEach(slot => {
     const a = ATLETAS.find(x => x.id === slot.getAttribute("data-face"));
     if (a) slot.appendChild(faceToCanvas(a, 3));
@@ -212,7 +230,41 @@ function renderLista() {
       renderDetalhe();
     });
   });
+
+  ajustarAlturaScroll(lista);
+  renderPager(pager, totalPaginas, itens.length);
   renderDetalhe();
+}
+
+/* atletas brasileiros (nac "BR") primeiro; mantém a ordem relativa do resto (sort estável) */
+function ordenarBrPrimeiro(itens) {
+  return itens.slice().sort((a, b) => (a.nac === "BR" ? 0 : 1) - (b.nac === "BR" ? 0 : 1));
+}
+
+/* fixa a altura da lista pra mostrar VISIVEIS atletas por vez; o resto fica no scroll */
+function ajustarAlturaScroll(lista) {
+  const rows = lista.querySelectorAll(".prow");
+  if (!rows.length) { lista.style.maxHeight = ""; return; }
+  const gap = parseFloat(getComputedStyle(lista).rowGap) || 8;
+  const h = rows[0].getBoundingClientRect().height;
+  lista.style.maxHeight = (h * VISIVEIS + gap * (VISIVEIS - 1)) + "px";
+}
+
+/* controles de paginação: anterior · indicador · próxima */
+function renderPager(pager, totalPaginas, totalItens) {
+  if (!pager) return;
+  if (totalPaginas <= 1) {
+    pager.innerHTML = `<span class="pager__info">${totalItens} atleta${totalItens === 1 ? "" : "s"}</span>`;
+    return;
+  }
+  pager.innerHTML = `
+    <button class="btn btn--ghost pager__btn" id="pg-prev" ${pagina <= 1 ? "disabled" : ""} aria-label="Página anterior">←</button>
+    <span class="pager__info">Página ${pagina} de ${totalPaginas} · ${totalItens} atletas</span>
+    <button class="btn btn--ghost pager__btn" id="pg-next" ${pagina >= totalPaginas ? "disabled" : ""} aria-label="Próxima página">→</button>`;
+  const prev = pager.querySelector("#pg-prev");
+  const next = pager.querySelector("#pg-next");
+  if (prev) prev.addEventListener("click", () => { pagina--; renderLista(); });
+  if (next) next.addEventListener("click", () => { pagina++; renderLista(); });
 }
 
 function rowAtleta(a, ativo, sel) {
