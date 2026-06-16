@@ -1051,6 +1051,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .ev--pen { border-left-color: var(--mostarda); color: var(--mostarda); font-weight: 700; }
 .ev--amarelo { border-left-color: #F5B11E; }
 .ev--vermelho { background: #4a0f0c; border-left-color: var(--accent); color: var(--bg); font-weight: 700; }
+.ev--cabeceio { border-left-color: var(--accent); color: var(--mostarda); font-weight: 700; }
+.ev--cruz { border-left-color: var(--dourado); }
+.ev--lanc { border-left-color: var(--phosphor); }
+.ev--drible { border-left-color: var(--mostarda); color: var(--mostarda); }
 
 /* =========================================================
    F7 — Resultado

@@ -357,18 +357,36 @@ function disputas(P) {
   const defSkill = (adv.atr.def + adv.atr.frc) / 2 / 99;
   const drbSkill = (dono.atr.drb + dono.atr.vel) / 2 / 99;
 
+  // drible: chance do portador se desvencilhar do marcador (lençol/caneta/etc.)
+  const pDrible = Math.max(0, Math.min(0.42, 0.16 + drbSkill * 0.42 - defSkill * 0.34));
   const pLimpo = Math.max(0.05, 0.34 + defSkill * 0.40 - drbSkill * 0.30);
   const pFalta = Math.max(0.05, 0.08 + agro * 0.14 + drbSkill * 0.12 - defSkill * 0.10);
   const r = P.rng();
 
-  if (r < pLimpo) {                 // desarme limpo
+  if (r < pDrible) {                          // drible — passa pelo marcador
+    aplicarDrible(P, dono, adv);
+  } else if (r < pDrible + pLimpo) {          // desarme limpo
     P.bola.dono = adv.id; P.bola.vx = 0; P.bola.vy = 0;
     P.eventos.push({ minuto: minuto(P), tipo: "posse", autorId: adv.id, time: adv.time,
       texto: `${adv.nome} desarma ${dono.nome}.` });
-  } else if (r < pLimpo + pFalta) { // falta
+  } else if (r < pDrible + pLimpo + pFalta) { // falta
     cometerFalta(P, adv, dono);
   }
   // senão: portador passou pelo marcador, segue a jogada
+}
+
+/* dribles que livram o portador do marcador */
+const DRIBLES = ["lençol", "caneta", "drible da vaca", "corta pra dentro", "meia-lua"];
+function aplicarDrible(P, dono, adv) {
+  const dir = dono.time === "MEU" ? 1 : -1;
+  const nome = DRIBLES[Math.floor(P.rng() * DRIBLES.length)];
+  // arranque pra frente, livrando do marcador
+  dono.vx += (P.rng() - 0.5) * 1.8;
+  dono.vy += dir * 2.4;
+  dono.cooldown = 6;
+  adv.tackleCd = 42;            // marcador batido não tenta de novo na hora
+  P.eventos.push({ minuto: minuto(P), tipo: "drible", autorId: dono.id, time: dono.time,
+    texto: `✨ ${dono.nome} aplica um ${nome} e passa por ${adv.nome}!` });
 }
 
 function cometerFalta(P, faltoso, vitima) {
@@ -414,6 +432,7 @@ function cometerFalta(P, faltoso, vitima) {
     const cobrador = jogadorMaisProximo(P, faltoso.x, faltoso.y, vitima.time) ||
       P.jogadores.find(j => j.time === vitima.time && !j.expulso);
     P.bola.dono = cobrador ? cobrador.id : null;
+    if (cobrador) { cobrador.cobrarFalta = true; cobrador.cooldown = 12; }
   }
 }
 
@@ -463,7 +482,7 @@ function penalti(P, time) {
     texto: `⚽ Pênalti! ${cobrador ? cobrador.nome : "?"} vai cobrar.` });
   // cobra logo após a parada
   P.paradaAte = P.tick + 30;
-  if (cobrador) cobrador.cooldown = 30;
+  if (cobrador) { cobrador.cooldown = 30; cobrador.cobrarPenalti = true; }
 }
 
 /* ===== árbitro e bandeirinhas ===== */
@@ -501,41 +520,71 @@ function jogadorMaisProximo(P, bx, by, time) {
 }
 
 function decidirAcaoComBola(P, j) {
-  const dir = j.time === "MEU" ? 1 : -1;
+  // cobranças (set pieces) têm prioridade
+  if (j.cobrarPenalti) { j.cobrarPenalti = false; baterPenalti(P, j); j.cooldown = 30; return; }
+  if (j.cobrarFalta)   { j.cobrarFalta = false;   cobrarFalta(P, j);   j.cooldown = 22; return; }
+
   const golY = j.time === "MEU" ? CAMPO_H : 0;
   const distGol = Math.abs(golY - j.y);
   const adversarios = P.jogadores.filter(x => x.time !== j.time);
   // pressão = quantos adversários a menos de 60px
   const press = adversarios.filter(a => Math.hypot(a.x - j.x, a.y - j.y) < 60).length;
-  // bias por estilo de time
   const taticaTime = j.time === "MEU" ? P.meuTime.tatica : P.adversario.tatica;
-  let pPasse = 0.45, pDrible = 0.2, pChute = 0;
-  if (distGol < 220) pChute = 0.35 + (j.atr.fin / 99) * 0.4;
-  if (taticaTime.estilo === "posse") { pPasse += 0.15; pDrible -= 0.05; }
-  if (taticaTime.estilo === "contra-ataque") { pChute += 0.1; }
-  if (taticaTime.estilo === "pressing") { pPasse -= 0.1; pDrible += 0.1; }
-  if (press >= 2) { pPasse += 0.15; pDrible -= 0.05; }
-  // normaliza
-  const total = pPasse + pDrible + pChute;
-  const r = P.rng() * total;
-  let escolha = r < pPasse ? "passe" : r < pPasse + pDrible ? "drible" : "chute";
 
-  if (escolha === "chute") {
-    chutar(P, j);
-    j.cooldown = 20;
-    return;
+  const tercoAtaque = distGol < CAMPO_H * 0.42;
+  const aberto = Math.abs(j.x - CAMPO_W / 2) > 150;     // perto da linha de fundo lateral
+  const avancado = colegaAvancado(P, j);                // colega em profundidade c/ espaço
+
+  // pesos por tipo de lance
+  let pPasse = 0.42, pDrible = 0.18, pChute = 0, pCruz = 0, pLanc = 0;
+  if (distGol < 220) pChute = 0.35 + (j.atr.fin / 99) * 0.4;
+  if (tercoAtaque && aberto) pCruz = 0.34;                              // cruzamento da ponta
+  if (avancado && press < 2) pLanc = 0.16 + (j.atr.vis / 99) * 0.12;    // lançamento em profundidade
+  if (taticaTime.estilo === "posse") { pPasse += 0.15; pDrible -= 0.05; pLanc -= 0.04; }
+  if (taticaTime.estilo === "contra-ataque") { pChute += 0.08; pLanc += 0.10; }
+  if (taticaTime.estilo === "pressing") { pPasse -= 0.1; pDrible += 0.1; }
+  if (press >= 2) { pPasse += 0.12; pDrible -= 0.05; pCruz += 0.05; }
+  pPasse = Math.max(0, pPasse); pDrible = Math.max(0, pDrible); pLanc = Math.max(0, pLanc);
+
+  const total = Math.max(0.01, pPasse + pDrible + pChute + pCruz + pLanc);
+  let r = P.rng() * total;
+  if (r < pChute) { chutar(P, j); j.cooldown = 20; return; }
+  r -= pChute;
+  if (r < pCruz) { cruzar(P, j); j.cooldown = 16; return; }
+  r -= pCruz;
+  if (r < pLanc) {
+    const alvo = avancado || melhorColega(P, j);
+    if (alvo) { lancar(P, j, alvo); j.cooldown = 18; return; }
   }
-  if (escolha === "passe") {
+  r -= pLanc;
+  if (r < pPasse) {
     const colega = melhorColega(P, j);
-    if (colega) {
-      passar(P, j, colega);
-      j.cooldown = 18;
-      return;
-    }
+    if (colega) { passar(P, j, colega); j.cooldown = 16; return; }
   }
-  // drible: incrementa velocidade pra frente
+  // resto: drible em condução
   driblar(P, j);
   j.cooldown = 10;
+}
+
+/* colega claramente à frente (profundidade) e com pouca marcação — alvo de lançamento */
+function colegaAvancado(P, j) {
+  const dir = j.time === "MEU" ? 1 : -1;
+  let melhor = null, best = -Infinity;
+  for (const c of P.jogadores) {
+    if (c.time !== j.time || c.id === j.id || c.pos === "GOL") continue;
+    const dy = (c.y - j.y) * dir;          // positivo = à frente
+    if (dy < 120) continue;                // só profundidade real
+    const marca = P.jogadores.filter(a => a.time !== j.time && Math.hypot(a.x - c.x, a.y - c.y) < 40).length;
+    const score = dy - marca * 60 + (P.rng() - 0.5) * 30;
+    if (score > best) { best = score; melhor = c; }
+  }
+  return melhor;
+}
+
+/* dentro da grande área de ataque (pra cabecear cruzamento) */
+function naAreaAtaque(j) {
+  if (Math.abs(j.x - CAMPO_W / 2) >= 140) return false;
+  return j.time === "MEU" ? j.y > CAMPO_H - 120 : j.y < 120;
 }
 
 function melhorColega(P, j) {
@@ -575,6 +624,114 @@ function driblar(P, j) {
   P.bola.vx = (j.vx) + (P.rng() - 0.5) * 1.2;
   P.bola.vy = (j.vy) + dir * 2.4;
   // ainda em domínio (não solta)
+}
+
+/* lançamento: bola longa e forte pra um colega em profundidade */
+function lancar(P, de, para) {
+  const dx = para.x - de.x, dy = para.y - de.y;
+  const v = 13 + de.atr.pas / 99 * 7;                       // mais forte que passe curto
+  const erro = (1 - de.atr.vis / 99) * 0.16 * (P.rng() - 0.5);
+  const ang = Math.atan2(dy, dx) + erro;
+  P.bola.vx = Math.cos(ang) * v;
+  P.bola.vy = Math.sin(ang) * v;
+  P.bola.dono = null;
+  P.eventos.push({ minuto: minuto(P), tipo: "lancamento", autorId: de.id, alvoId: para.id, time: de.time,
+    texto: `📡 ${de.nome} lança em profundidade para ${para.nome}!` });
+}
+
+/* cruzamento: bola na área; o próximo atacante na área cabeceia */
+function cruzar(P, de) {
+  const dir = de.time === "MEU" ? 1 : -1;
+  const golY = de.time === "MEU" ? CAMPO_H - 30 : 30;       // dentro da área adversária
+  const alvoAtk = P.jogadores
+    .filter(x => x.time === de.time && x.id !== de.id && x.pos !== "GOL")
+    .sort((a, b) => (b.y - a.y) * dir)[0];                  // mais avançado
+  const alvoX = alvoAtk ? (alvoAtk.x + CAMPO_W / 2) / 2 : CAMPO_W / 2;
+  const dx = alvoX - de.x, dy = golY - de.y;
+  const v = 12 + de.atr.pas / 99 * 6;
+  const erro = (1 - de.atr.pas / 99) * 0.16 * (P.rng() - 0.5);
+  const ang = Math.atan2(dy, dx) + erro;
+  P.bola.vx = Math.cos(ang) * v;
+  P.bola.vy = Math.sin(ang) * v;
+  P.bola.dono = null;
+  P.bola.cruzamento = { time: de.time };                   // marca p/ virar cabeceio na área
+  P.eventos.push({ minuto: minuto(P), tipo: "cruzamento", autorId: de.id, time: de.time,
+    texto: `🎯 ${de.nome} cruza na área!` });
+}
+
+/* cabeceio: finalização de cabeça (força + finalização), menos precisa que de pé */
+function cabecear(P, j) {
+  const golY = j.time === "MEU" ? CAMPO_H - 4 : 4;
+  const golX = CAMPO_W / 2 + (P.rng() - 0.5) * (GOL_W - 8);
+  const dx = golX - j.x, dy = golY - j.y;
+  const v = 11 + j.atr.frc / 99 * 6;
+  const mira = (j.atr.fin + j.atr.frc) / 2 / 99;
+  const erro = (1 - mira) * 0.22 * (P.rng() - 0.5);
+  const ang = Math.atan2(dy, dx) + erro;
+  P.bola.vx = Math.cos(ang) * v;
+  P.bola.vy = Math.sin(ang) * v;
+  P.bola.dono = null;
+  P.stats[j.time].chutes++;
+  if (Math.abs(erro) < 0.08) P.stats[j.time].chutesNoGol++;
+  P.eventos.push({ minuto: minuto(P), tipo: "cabeceio", autorId: j.id, time: j.time,
+    texto: `🦅 ${j.nome} sobe mais que a zaga e cabeceia!` });
+}
+
+/* cobrança de falta: chute direto (se central e perto), senão cruza ou toca curto */
+function cobrarFalta(P, j) {
+  const golY = j.time === "MEU" ? CAMPO_H : 0;
+  const distGol = Math.abs(golY - j.y);
+  const central = Math.abs(j.x - CAMPO_W / 2) < 150;
+  if (distGol < 250 && central && P.rng() < 0.45 + j.atr.fin / 99 * 0.3) {
+    const golY2 = j.time === "MEU" ? CAMPO_H - 4 : 4;
+    const golX = CAMPO_W / 2 + (P.rng() - 0.5) * (GOL_W - 16);
+    const dx = golX - j.x, dy = golY2 - j.y;
+    const v = 15 + j.atr.fin / 99 * 8;
+    const erro = (1 - j.atr.fin / 99) * 0.14 * (P.rng() - 0.5); // falta ensaiada: precisa
+    const ang = Math.atan2(dy, dx) + erro;
+    P.bola.vx = Math.cos(ang) * v;
+    P.bola.vy = Math.sin(ang) * v;
+    P.bola.dono = null;
+    P.stats[j.time].chutes++;
+    if (Math.abs(erro) < 0.06) P.stats[j.time].chutesNoGol++;
+    P.eventos.push({ minuto: minuto(P), tipo: "cobranca", autorId: j.id, time: j.time,
+      texto: `🎯 ${j.nome} bate a falta direto pro gol!` });
+  } else if (Math.abs(j.x - CAMPO_W / 2) > 120 || distGol < 300) {
+    cruzar(P, j); // bola na área
+  } else {
+    const colega = melhorColega(P, j);
+    if (colega) passar(P, j, colega); else driblar(P, j);
+  }
+}
+
+/* cobrança de pênalti: canto / defesa do goleiro / pra fora */
+function baterPenalti(P, j) {
+  const dir = j.time === "MEU" ? 1 : -1;
+  const golY = j.time === "MEU" ? CAMPO_H - 2 : 2;
+  const gk = P.jogadores.find(g => g.time !== j.time && g.pos === "GOL");
+  const pGol = Math.max(0.45, Math.min(0.92, 0.58 + j.atr.fin / 99 * 0.32 - (gk ? gk.atr.ref / 99 * 0.22 : 0)));
+  const r = P.rng();
+  if (r < pGol) {                                   // no canto — vai pro gol
+    const lado = P.rng() < 0.5 ? -1 : 1;
+    const golX = CAMPO_W / 2 + lado * (GOL_W / 2 - 14);
+    const dx = golX - j.x, dy = golY - j.y, d = Math.hypot(dx, dy) || 1;
+    const v = 18 + j.atr.fin / 99 * 6;
+    P.bola.vx = (dx / d) * v; P.bola.vy = (dy / d) * v; P.bola.dono = null;
+    P.stats[j.time].chutes++; P.stats[j.time].chutesNoGol++;
+    P.eventos.push({ minuto: minuto(P), tipo: "penalti", autorId: j.id, time: j.time,
+      texto: `⚽ ${j.nome} bate no canto!` });
+  } else if (gk && P.rng() < 0.6) {                 // defesa do goleiro
+    P.bola.x = gk.x; P.bola.y = gk.y; P.bola.vx = 0; P.bola.vy = 0; P.bola.dono = gk.id;
+    P.stats[j.time].chutes++;
+    P.eventos.push({ minuto: minuto(P), tipo: "penalti", time: j.time,
+      texto: `🧤 ${gk.nome} defende o pênalti de ${j.nome}!` });
+  } else {                                          // isola
+    P.bola.dono = null;
+    P.bola.vx = (P.rng() - 0.5) * 6; P.bola.vy = dir * (16 + P.rng() * 4);
+    P.stats[j.time].chutes++;
+    P.eventos.push({ minuto: minuto(P), tipo: "penalti", time: j.time,
+      texto: `😱 ${j.nome} isola o pênalti!` });
+  }
 }
 
 function chutar(P, j) {
@@ -629,10 +786,18 @@ function moverBola(P) {
     }
   }
   if (melhorDono) {
-    // chance de roubada se já tinha dono indireto e bola lenta
-    b.dono = melhorDono.id;
-    P.eventos.push({ minuto: minuto(P), tipo: "posse", autorId: melhorDono.id, time: melhorDono.time, texto: `${melhorDono.nome} domina.` });
-    b.vx = 0; b.vy = 0;
+    // cruzamento chegando: atacante na área cabeceia em vez de só dominar
+    if (b.cruzamento && melhorDono.time === b.cruzamento.time &&
+        melhorDono.pos !== "GOL" && naAreaAtaque(melhorDono)) {
+      b.cruzamento = null;
+      b.dono = melhorDono.id;
+      cabecear(P, melhorDono);
+    } else {
+      b.cruzamento = null;
+      b.dono = melhorDono.id;
+      P.eventos.push({ minuto: minuto(P), tipo: "posse", autorId: melhorDono.id, time: melhorDono.time, texto: `${melhorDono.nome} domina.` });
+      b.vx = 0; b.vy = 0;
+    }
   }
   // bola saindo dos limites laterais => reposição rápida
   if (b.x < 4 || b.x > CAMPO_W - 4) {
@@ -642,10 +807,10 @@ function moverBola(P) {
   if (b.y < 4 && b.dono === null) {
     // chute pra fora da linha de fundo do adversário (defesa do "MEU" => não é gol)
     // pra simplificar, reposicionamos
-    P.bola.x = CAMPO_W / 2; P.bola.y = 80; P.bola.vx = 0; P.bola.vy = 0;
+    P.bola.x = CAMPO_W / 2; P.bola.y = 80; P.bola.vx = 0; P.bola.vy = 0; P.bola.cruzamento = null;
   }
   if (b.y > CAMPO_H - 4 && b.dono === null) {
-    P.bola.x = CAMPO_W / 2; P.bola.y = CAMPO_H - 80; P.bola.vx = 0; P.bola.vy = 0;
+    P.bola.x = CAMPO_W / 2; P.bola.y = CAMPO_H - 80; P.bola.vx = 0; P.bola.vy = 0; P.bola.cruzamento = null;
   }
 }
 
@@ -665,8 +830,9 @@ function verificarGol(P) {
 }
 
 function fazerGol(P, time) {
-  // autor = último que teve a bola desse time
-  const ultimoEvento = [...P.eventos].reverse().find(e => (e.tipo === "chute" || e.tipo === "passe") && e.time === time);
+  // autor = último que finalizou/tocou pra esse time (inclui cabeceio, pênalti e falta direta)
+  const FINAL = ["chute", "cabeceio", "penalti", "cobranca", "passe", "lancamento", "cruzamento"];
+  const ultimoEvento = [...P.eventos].reverse().find(e => FINAL.includes(e.tipo) && e.time === time && e.autorId);
   const autorId = ultimoEvento?.autorId || P.jogadores.find(j => j.time === time)?.id;
   const autor = P.jogadores.find(j => j.id === autorId);
   P.placar[time]++;
@@ -681,6 +847,7 @@ function resetKickoff(P, quemSai) {
   P.bola.y = CAMPO_H / 2;
   P.bola.vx = 0; P.bola.vy = 0;
   P.bola.dono = null;
+  P.bola.cruzamento = null;
   // jogadores voltam aproximadamente ao home
   P.jogadores.forEach(j => {
     j.x = j.homeX + (P.rng() - 0.5) * 12;
@@ -688,6 +855,8 @@ function resetKickoff(P, quemSai) {
     j.vx = 0; j.vy = 0;
     j.wx = 0; j.wy = 0;
     j.subiu = false;
+    j.cobrarFalta = false;
+    j.cobrarPenalti = false;
   });
   if (quemSai) {
     // dá a posse pro time `quemSai` no centro
