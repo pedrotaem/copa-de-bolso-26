@@ -247,9 +247,11 @@ function ordenarBrPrimeiro(itens) {
 function ajustarAlturaScroll(lista) {
   const rows = lista.querySelectorAll(".prow");
   if (!rows.length) { lista.style.maxHeight = ""; return; }
-  const gap = parseFloat(getComputedStyle(lista).rowGap) || 8;
+  const gap = parseFloat(getComputedStyle(lista).rowGap) || 12;
   const h = rows[0].getBoundingClientRect().height;
-  lista.style.maxHeight = (h * VISIVEIS + gap * (VISIVEIS - 1)) + "px";
+  // mostra VISIVEIS linhas cheias + meia linha "espiada" → afordância de scroll
+  const peek = rows.length > VISIVEIS ? gap + h * 0.5 : 0;
+  lista.style.maxHeight = (h * VISIVEIS + gap * (VISIVEIS - 1) + peek) + "px";
 }
 
 /* controles de paginação: anterior · indicador · próxima */
