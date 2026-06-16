@@ -16,3 +16,6 @@ Thumbs.db
 INFRA.local.md
 *.local.md
 docs/sdlc-aws-github-actions.md
+
+# Specs locais
+specs/
